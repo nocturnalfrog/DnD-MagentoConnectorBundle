@@ -459,8 +459,35 @@ class ORMProductReader extends AbstractConfigurableStepElement implements Produc
                 $expression
             );
         } else {
-            $qb = $this->repository->buildByChannelAndCompleteness($channel);
-            // TODO Fix with isComplete at false
+            $qb = $this->repository->buildByScope($scope);
+            
+            $rootAlias = current($qb->getRootAliases());
+            
+            $complete = ($isComplete) ? $qb->expr()->eq('pCompleteness.ratio', '100') : $qb->expr()->lt('pCompleteness.ratio', '100');
+            $expression =
+                'pCompleteness.product = '.$rootAlias.' AND '.
+                $complete .' AND '.
+                $qb->expr()->eq('pCompleteness.channel', $channel->getId());
+
+            $rootEntity          = current($qb->getRootEntities());
+            $completenessMapping = $this->entityManager->getClassMetadata($rootEntity)
+                ->getAssociationMapping('completenesses');
+            $completenessClass   = $completenessMapping['targetEntity'];
+            $qb->innerJoin(
+                $completenessClass,
+                'pCompleteness',
+                'WITH',
+                $expression
+            );
+
+            $treeId = $channel->getCategory()->getId();
+            $expression = $qb->expr()->eq('pCategory.root', $treeId);
+            $qb->innerJoin(
+                $rootAlias.'.categories',
+                'pCategory',
+                'WITH',
+                $expression
+            );
         }
 
 
